@@ -8,3 +8,6 @@ Use:
 Enter VT2 Shell in Developer mode
 run this command with internet:
 ```sudo bash <(curl -sSL https://raw.githubusercontent.com/nmsjayden/KVS/refs/heads/main/kernver.sh)```
+
+Downgrade code from MURKMOD:
+```sudo bash <(curl -sSL https://raw.githubusercontent.com/nmsjayden/KVS/refs/heads/main/downgrade.sh)```
