@@ -7,7 +7,7 @@ WARNING!! THIS IS EXPERIMENTAL AND BUGS ARE 100% EXPECTED!!
 Use:
 Enter VT2 Shell in Developer mode
 run this command with internet:
-```sudo bash <(curl -sSL https://raw.githubusercontent.com/nmsjayden/KVS/refs/heads/main/kernver.sh)```
+```sudo bash <(curl -sSL https://raw.githubusercontent.com/nmsjayden/KVS/refs/heads/main/Kernver.sh)```
 
 Downgrade code from MURKMOD:
-```sudo bash <(curl -sSL https://raw.githubusercontent.com/nmsjayden/KVS/refs/heads/main/downgrade.sh)```
+```sudo bash <(curl -sSL https://raw.githubusercontent.com/nmsjayden/KVS/refs/heads/main/Downgrade.sh)```
