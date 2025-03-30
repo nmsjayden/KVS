@@ -1,4 +1,3 @@
-sudo bash <(curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/your_script.sh) <<'EOF'
 #!/bin/bash
 
 get_largest_cros_blockdev() {
