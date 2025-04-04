@@ -12,7 +12,7 @@ show_logo() {
  | (__ |   \ | '_|/ _ \| '  \ / -/)      | |) |/ _ \ \ V  V /| ' \ \__. || '_|/ _` |/ _` |/ -_)|'_|
   \___||_||_||_|  \___/|_|_|_|\___|      |___/ \___/  \_/\_/ |_||_||___/ |_|  \__/_|\__/_|\___||_|
 EOF
-    echo "Yes, I skidded off of MurkMod - v1.4.67 - Developer mode downgrader"
+    echo "Yes, I skidded off of MurkMod - v1.6.12 - Developer mode downgrader"
 }
 
 list_versions() {
@@ -85,39 +85,16 @@ list_versions() {
     done
 
     echo "-------------------------------------"
-    
-    # Ask the user to choose a version to install
-    while true; do
-        echo "Enter the number of the version you want to install (e.g., 1, 2, 3, etc.):"
-        read -r choice
-        if [[ "$choice" =~ ^[0-9]+$ ]] && ((choice >= 1)) && ((choice <= total_versions)); then
-            selected_version="${versions[$((choice - 1))]}"
-            echo "You selected: $selected_version"
-            break
-        else
-            echo "Invalid choice, please enter a number between 1 and $total_versions."
+
+    # Prompt the user twice if they want to go back to the menu
+    read -r -p "Do you want to go back to the downgrade menu? (y/n): " response
+    if [[ "$response" =~ ^[Yy]$ ]]; then
+        read -r -p "Are you sure you want to go back to the menu? (y/n): " confirm
+        if [[ "$confirm" =~ ^[Yy]$ ]]; then
+            clear  # Clear the terminal screen
+            main  # Assuming `downgrade_menu` is the function to bring the user back to the menu
         fi
-    done
-
-    # Extract the selected version and platform/channel details
-    selected_version_number=$(echo "$selected_version" | cut -d'|' -f1 | xargs)
-    platform=$(echo "$selected_version" | cut -d'|' -f2 | sed 's/Platform: //')
-    channel=$(echo "$selected_version" | cut -d'|' -f3 | sed 's/Channel: //')
-
-    echo "Proceeding with installation for version $selected_version_number on platform $platform, channel $channel..."
-
-    # Proceed with the installation
-    # (Here you would add the steps to actually install the selected version)
-    # Example:
-    install_version "$selected_version_number" "$platform" "$channel"
-}
-
-install_version() {
-    # This is a placeholder function for installing the selected version
-    # You can replace this with the actual installation steps
-    
-    echo "Installing version $1 for platform $2 on channel $3..."
-    # Implement installation logic here...
+    fi
 }
 
 lsbval() {
