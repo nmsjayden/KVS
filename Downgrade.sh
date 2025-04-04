@@ -42,19 +42,19 @@ list_versions() {
     for cros_version in $chrome_versions; do
         platform=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
         channel=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
-        mp_token=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .mp_token')
-        mp_key=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .mp_key')
-        last_modified=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .last_modified')
-
-        echo "$i) Version: $cros_version"
-        echo "   Platform: $platform"
-        echo "   Channel: $channel"
-        echo "   MP Token: $mp_token"
-        echo "   MP Key: $mp_key"
-        echo "   Last Modified: $last_modified"
-        echo "-------------------------------------"
+        
+        # Print the version in a compact format
+        echo "$i) $cros_version | Platform: $platform | Channel: $channel"
         ((i++))
+        
+        # Limit to a few lines to avoid overwhelming the user with too much data
+        if [ $i -gt 5 ]; then
+            echo "Showing first 5 versions. Press Enter to continue for more or Ctrl+C to exit."
+            read -r
+            i=1 # Reset counter to display next 5 versions
+        fi
     done
+    echo "-------------------------------------"
 }
 
 lsbval() {
