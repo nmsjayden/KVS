@@ -12,7 +12,7 @@ show_logo() {
  | (__ |   \ | '_|/ _ \| '  \ / -/)      | |) |/ _ \ \ V  V /| ' \ \__. || '_|/ _` |/ _` |/ -_)|'_|
   \___||_||_||_|  \___/|_|_|_|\___|      |___/ \___/  \_/\_/ |_||_||___/ |_|  \__/_|\__/_|\___||_|
 EOF
-    echo "Yes, I skidded off of MurkMod - v1.6.12 - Developer mode downgrader"
+    echo "Yes, I skidded off of MurkMod - v1.6.15 - Developer mode downgrader"
 }
 
 list_versions() {
@@ -92,7 +92,7 @@ list_versions() {
         read -r -p "Are you sure you want to go back to the menu? (y/n): " confirm
         if [[ "$confirm" =~ ^[Yy]$ ]]; then
             clear  # Clear the terminal screen
-            main  # Assuming `downgrade_menu` is the function to bring the user back to the menu
+            downgrade_menu  # Assuming `downgrade_menu` is the function to bring the user back to the menu
         fi
     fi
 }
