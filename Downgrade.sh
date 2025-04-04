@@ -12,7 +12,49 @@ show_logo() {
  | (__ |   \ | '_|/ _ \| '  \ / -/)      | |) |/ _ \ \ V  V /| ' \ \__. || '_|/ _` |/ _` |/ -_)|'_|
   \___||_||_||_|  \___/|_|_|_|\___|      |___/ \___/  \_/\_/ |_||_||___/ |_|  \__/_|\__/_|\___||_|
 EOF
-    echo "Yes, I skidded off of MurkMod - v$CURRENT_MAJOR.$CURRENT_MINOR.$CURRENT_VERSION - Developer mode installer"
+    echo "Yes, I skidded off of MurkMod - v$CURRENT_MAJOR.$CURRENT_MINOR.$CURRENT_VERSION - Developer mode downgrader"
+}
+
+list_versions() {
+    local release_board=$(lsbval CHROMEOS_RELEASE_BOARD)
+    local board=${release_board%%-*}
+    echo "Fetching available versions for board: $board..."
+    
+    # Get ChromeOS versions from chrome100 or chromiumdash
+    local url="https://raw.githubusercontent.com/rainestorme/chrome100-json/main/boards/$board.json"
+    local json=$(curl -ks "$url")
+    
+    if [ -z "$json" ]; then
+        echo "Failed to fetch versions for board $board. Exiting."
+        exit 1
+    fi
+
+    local chrome_versions=$(echo "$json" | jq -r '.pageProps.images[].chrome')
+
+    if [ -z "$chrome_versions" ]; then
+        echo "No versions found for board $board."
+        exit 1
+    fi
+
+    echo "Available versions for board $board:"
+    echo "-------------------------------------"
+    local i=1
+    for cros_version in $chrome_versions; do
+        platform=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
+        channel=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
+        mp_token=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .mp_token')
+        mp_key=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .mp_key')
+        last_modified=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .last_modified')
+
+        echo "$i) Version: $cros_version"
+        echo "   Platform: $platform"
+        echo "   Channel: $channel"
+        echo "   MP Token: $mp_token"
+        echo "   MP Key: $mp_key"
+        echo "   Last Modified: $last_modified"
+        echo "-------------------------------------"
+        ((i++))
+    done
 }
 
 lsbval() {
@@ -76,21 +118,15 @@ main() {
     echo "Starting ChromeOS image recovery process..."
 
     echo "What version do you want to install?"
-    echo " 1) 105"
-    echo " 2) 107"
-    echo " 3) 117"
-    echo " 4) 118"
-    echo " 5) latest"
-    echo " 6) custom"
-    read -p "(1-6) > " choice
+    echo " 1) list versions"
+    echo " 2) latest"
+    echo " 3) custom"
+    read -p "(1-3) > " choice
 
     case $choice in
-        1) VERSION="105" ;;
-        2) VERSION="107" ;;
-        3) VERSION="117" ;;
-        4) VERSION="118" ;;
-        5) VERSION="latest" ;;
-        6) read -p "Enter milestone: " VERSION ;;
+        1) list_versions ;;
+        2) VERSION="latest" ;;
+        3) read -p "Enter milestone: " VERSION ;;
         *) echo "Invalid choice, exiting." && exit ;;
     esac
 
