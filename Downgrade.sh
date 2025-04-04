@@ -39,13 +39,9 @@ list_versions() {
     # Prepare an array to hold unique major.minor versions
     declare -A unique_versions
 
-    # Only show "Showing X versions..." message once
-    echo "-------------------------------------"
-    echo "Showing first 5 versions. Press Enter to continue for more or Ctrl+C to exit."
-    echo "-------------------------------------"
-
-    local first_run=true
     local i=1
+    local count=0
+    local first_run=true
 
     for cros_version in $(echo "$chrome_versions" | sort -V); do
         # Extract the major.minor version part (e.g., 124.0)
@@ -56,14 +52,16 @@ list_versions() {
             unique_versions[$major_minor]=$cros_version
             platform=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
             channel=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
-            
+
             # Print the version in a compact format with a sequential number
             echo "$i) $cros_version | Platform: $platform | Channel: $channel"
             ((i++))
+            ((count++))
 
             # If 5 versions have been shown, wait for user input to continue
-            if [ $((i-1)) -ge 5 ]; then
-                read -r  # Wait for user input to show next versions
+            if [ $count -ge 5 ]; then
+                read -r -p "Press Enter to continue for more versions, or Ctrl+C to exit."
+                count=0  # Reset the count for the next batch of 5 versions
             fi
         fi
     done
