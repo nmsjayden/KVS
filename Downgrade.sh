@@ -36,24 +36,41 @@ list_versions() {
         exit 1
     fi
 
+    # Sort versions and remove duplicates
     echo "Available versions for board $board:"
     echo "-------------------------------------"
     local i=1
-    for cros_version in $chrome_versions; do
+    local last_version=""
+    local first_run=true
+
+    # Iterate over the versions and filter out duplicates
+    for cros_version in $(echo "$chrome_versions" | sort -V); do
         platform=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
         channel=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
-        
+
+        # Skip duplicate versions
+        if [[ "$cros_version" == "$last_version" ]]; then
+            continue
+        fi
+
         # Print the version in a compact format
         echo "$i) $cros_version | Platform: $platform | Channel: $channel"
+        last_version="$cros_version"  # Update the last seen version
         ((i++))
-        
+
+        # Only show the "Showing first 5 versions..." message once
+        if [ $i -gt 5 ] && $first_run; then
+            echo "Showing first 5 versions. Press Enter to continue for more or Ctrl+C to exit."
+            first_run=false
+        fi
+
         # Limit to a few lines to avoid overwhelming the user with too much data
         if [ $i -gt 5 ]; then
-            echo "Showing first 5 versions. Press Enter to continue for more or Ctrl+C to exit."
-            read -r
-            i=1 # Reset counter to display next 5 versions
+            read -r  # Wait for user input to show next versions
+            i=1      # Reset counter to display next 5 versions
         fi
     done
+
     echo "-------------------------------------"
 }
 
