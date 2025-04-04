@@ -36,38 +36,41 @@ list_versions() {
         exit 1
     fi
 
-    # Sort versions and remove duplicates
+    # Prepare an array to hold unique major.minor versions
+    declare -A unique_versions
+
+    # Iterate over the versions and filter out duplicates
     echo "Available versions for board $board:"
     echo "-------------------------------------"
     local i=1
-    local last_version=""
     local first_run=true
+    local last_version=""
 
-    # Iterate over the versions and filter out duplicates
     for cros_version in $(echo "$chrome_versions" | sort -V); do
-        platform=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
-        channel=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
+        # Extract the major.minor version part (e.g., 124.0)
+        major_minor=$(echo "$cros_version" | cut -d'.' -f1,2)
+        
+        # If this major.minor version hasn't been added yet, add it
+        if [ -z "${unique_versions[$major_minor]}" ]; then
+            unique_versions[$major_minor]=$cros_version
+            platform=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
+            channel=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
+            
+            # Print the version in a compact format
+            echo "$i) $cros_version | Platform: $platform | Channel: $channel"
+            ((i++))
 
-        # Skip duplicate versions
-        if [[ "$cros_version" == "$last_version" ]]; then
-            continue
-        fi
+            # Only show the "Showing first 5 versions..." message once
+            if [ $i -gt 5 ] && $first_run; then
+                echo "Showing first 5 versions. Press Enter to continue for more or Ctrl+C to exit."
+                first_run=false
+            fi
 
-        # Print the version in a compact format
-        echo "$i) $cros_version | Platform: $platform | Channel: $channel"
-        last_version="$cros_version"  # Update the last seen version
-        ((i++))
-
-        # Only show the "Showing first 5 versions..." message once
-        if [ $i -gt 5 ] && $first_run; then
-            echo "Showing first 5 versions. Press Enter to continue for more or Ctrl+C to exit."
-            first_run=false
-        fi
-
-        # Limit to a few lines to avoid overwhelming the user with too much data
-        if [ $i -gt 5 ]; then
-            read -r  # Wait for user input to show next versions
-            i=1      # Reset counter to display next 5 versions
+            # Limit to a few lines to avoid overwhelming the user with too much data
+            if [ $i -gt 5 ]; then
+                read -r  # Wait for user input to show next versions
+                i=1      # Reset counter to display next 5 versions
+            fi
         fi
     done
 
