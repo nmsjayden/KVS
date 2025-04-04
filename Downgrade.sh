@@ -39,12 +39,13 @@ list_versions() {
     # Prepare an array to hold unique major.minor versions
     declare -A unique_versions
 
-    # Iterate over the versions and filter out duplicates
-    echo "Available versions for board $board:"
+    # Only show "Showing X versions..." message once
     echo "-------------------------------------"
-    local i=1
+    echo "Showing first 5 versions. Press Enter to continue for more or Ctrl+C to exit."
+    echo "-------------------------------------"
+
     local first_run=true
-    local last_version=""
+    local i=0
 
     for cros_version in $(echo "$chrome_versions" | sort -V); do
         # Extract the major.minor version part (e.g., 124.0)
@@ -56,20 +57,14 @@ list_versions() {
             platform=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
             channel=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
             
-            # Print the version in a compact format
-            echo "$i) $cros_version | Platform: $platform | Channel: $channel"
+            # Print the version in a compact format without numbers
+            echo "$cros_version | Platform: $platform | Channel: $channel"
             ((i++))
 
-            # Only show the "Showing first 5 versions..." message once
-            if [ $i -gt 5 ] && $first_run; then
-                echo "Showing first 5 versions. Press Enter to continue for more or Ctrl+C to exit."
-                first_run=false
-            fi
-
-            # Limit to a few lines to avoid overwhelming the user with too much data
-            if [ $i -gt 5 ]; then
+            # If 5 versions have been shown, wait for user input to continue
+            if [ $i -ge 5 ]; then
                 read -r  # Wait for user input to show next versions
-                i=1      # Reset counter to display next 5 versions
+                i=0      # Reset counter to display next 5 versions
             fi
         fi
     done
