@@ -42,7 +42,9 @@ list_versions() {
     local i=1
     local count=0
     local first_run=true
+    local versions=()
 
+    # Loop over all versions and save them to an array
     for cros_version in $(echo "$chrome_versions" | sort -V); do
         # Extract the major.minor version part (e.g., 124.0)
         major_minor=$(echo "$cros_version" | cut -d'.' -f1,2)
@@ -53,16 +55,32 @@ list_versions() {
             platform=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
             channel=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
 
-            # Print the version in a compact format with a sequential number
-            echo "$i) $cros_version | Platform: $platform | Channel: $channel"
-            ((i++))
-            ((count++))
+            # Save the version and related info into the array
+            versions+=("$cros_version | Platform: $platform | Channel: $channel")
+        fi
+    done
 
-            # If 5 versions have been shown, wait for user input to continue
-            if [ $count -ge 5 ]; then
-                read -r -p "Press Enter to continue for more versions, or Ctrl+C to exit."
-                count=0  # Reset the count for the next batch of 5 versions
-            fi
+    # Loop through the versions array and show 5 at a time
+    total_versions=${#versions[@]}
+    total_pages=$((total_versions / 5))
+    if [ $((total_versions % 5)) -ne 0 ]; then
+        total_pages=$((total_pages + 1))
+    fi
+
+    for page in $(seq 0 $((total_pages - 1))); do
+        echo "-------------------------------------"
+        start_index=$((page * 5))
+        end_index=$(((page + 1) * 5 - 1))
+        if [ $end_index -ge $total_versions ]; then
+            end_index=$((total_versions - 1))
+        fi
+        # Display versions for the current page
+        for i in $(seq $start_index $end_index); do
+            echo "$((i + 1))) ${versions[$i]}"
+        done
+        # Wait for the user to press Enter to show more
+        if [ $page -lt $((total_pages - 1)) ]; then
+            read -r -p "Press Enter to continue for more versions, or Ctrl+C to exit."
         fi
     done
 
