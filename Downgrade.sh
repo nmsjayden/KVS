@@ -12,7 +12,7 @@ show_logo() {
  | (__ |   \ | '_|/ _ \| '  \ / -/)      | |) |/ _ \ \ V  V /| ' \ \__. || '_|/ _` |/ _` |/ -_)|'_|
   \___||_||_||_|  \___/|_|_|_|\___|      |___/ \___/  \_/\_/ |_||_||___/ |_|  \__/_|\__/_|\___||_|
 EOF
-    echo "Yes, I skidded off of MurkMod - v1.6.45 - Developer mode downgrader"
+    echo "Yes, I skidded off of MurkMod - v1.6.47 - Developer mode downgrader"
 }
 
 list_versions() {
@@ -20,12 +20,33 @@ list_versions() {
     local board=${release_board%%-*}
     echo "Fetching available versions for board: $board..."
 
-    # Fetch chrome100 JSON
-    local url_chrome100="https://raw.githubusercontent.com/rainestorme/chrome100-json/main/boards/$board.json"
-    local json_chrome100=$(curl -ks "$url_chrome100")
+    # Ask user which sources to fetch from
+    echo "Which sources would you like to fetch versions from?"
+    echo "1) Chrome100"
+    echo "2) Chromium Dash"
+    echo "3) Both"
+    read -p "Enter your choice (1-3): " source_choice
 
-    # Fetch Chromium Dash builds
-    local builds=$(curl -ks https://chromiumdash.appspot.com/cros/fetch_serving_builds?deviceCategory=Chrome%20OS)
+    # Fetch data based on user's selection
+    local json_chrome100=""
+    local builds=""
+    
+    case "$source_choice" in
+        1) 
+            json_chrome100=$(curl -ks "https://raw.githubusercontent.com/rainestorme/chrome100-json/main/boards/$board.json")
+            ;;
+        2)
+            builds=$(curl -ks "https://chromiumdash.appspot.com/cros/fetch_serving_builds?deviceCategory=Chrome%20OS")
+            ;;
+        3)
+            json_chrome100=$(curl -ks "https://raw.githubusercontent.com/rainestorme/chrome100-json/main/boards/$board.json")
+            builds=$(curl -ks "https://chromiumdash.appspot.com/cros/fetch_serving_builds?deviceCategory=Chrome%20OS")
+            ;;
+        *)
+            echo "Invalid choice, exiting."
+            exit 1
+            ;;
+    esac
 
     if [ -z "$json_chrome100" ] && [ -z "$builds" ]; then
         echo "Failed to fetch version data. Exiting."
@@ -44,7 +65,9 @@ list_versions() {
                 unique_versions[$major_minor]=$cros_version
                 platform=$(echo "$json_chrome100" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
                 channel=$(echo "$json_chrome100" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
-                versions+=("$cros_version | Platform: $platform | Channel: $channel (chrome100)")
+                if [ -n "$platform" ]; then
+                    versions+=("$cros_version | Platform: $platform | Channel: $channel (chrome100)")
+                fi
             fi
         done
     fi
