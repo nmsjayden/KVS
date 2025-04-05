@@ -20,33 +20,9 @@ list_versions() {
     local board=${release_board%%-*}
     echo "Fetching available versions for board: $board..."
 
-    # Ask user which sources to fetch from
-    echo "Which sources would you like to fetch versions from?"
-    echo "1) Chrome100"
-    echo "2) Chromium Dash"
-    echo "3) Both"
-    read -p "Enter your choice (1-3): " source_choice
-
-    # Fetch data based on user's selection
-    local json_chrome100=""
-    local builds=""
-    
-    case "$source_choice" in
-        1) 
-            json_chrome100=$(curl -ks "https://raw.githubusercontent.com/rainestorme/chrome100-json/main/boards/$board.json")
-            ;;
-        2)
-            builds=$(curl -ks "https://chromiumdash.appspot.com/cros/fetch_serving_builds?deviceCategory=Chrome%20OS")
-            ;;
-        3)
-            json_chrome100=$(curl -ks "https://raw.githubusercontent.com/rainestorme/chrome100-json/main/boards/$board.json")
-            builds=$(curl -ks "https://chromiumdash.appspot.com/cros/fetch_serving_builds?deviceCategory=Chrome%20OS")
-            ;;
-        *)
-            echo "Invalid choice, exiting."
-            exit 1
-            ;;
-    esac
+    # Fetch data from both Chrome100 and Chromium Dash
+    local json_chrome100=$(curl -ks "https://raw.githubusercontent.com/rainestorme/chrome100-json/main/boards/$board.json")
+    local builds=$(curl -ks "https://chromiumdash.appspot.com/cros/fetch_serving_builds?deviceCategory=Chrome%20OS")
 
     if [ -z "$json_chrome100" ] && [ -z "$builds" ]; then
         echo "Failed to fetch version data. Exiting."
@@ -65,9 +41,7 @@ list_versions() {
                 unique_versions[$major_minor]=$cros_version
                 platform=$(echo "$json_chrome100" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
                 channel=$(echo "$json_chrome100" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
-                if [ -n "$platform" ]; then
-                    versions+=("$cros_version | Platform: $platform | Channel: $channel (chrome100)")
-                fi
+                versions+=("$cros_version | Platform: $platform | Channel: $channel (chrome100)")
             fi
         done
     fi
@@ -91,6 +65,7 @@ list_versions() {
     total_versions=${#versions[@]}
     total_pages=$(( (total_versions + 4) / 5 ))
 
+    # Display versions
     for page in $(seq 0 $((total_pages - 1))); do
         echo "-------------------------------------"
         start_index=$((page * 5))
@@ -105,6 +80,8 @@ list_versions() {
     done
 
     echo "-------------------------------------"
+
+    # Prompt to go back to the menu or select a version
     read -r -p "Do you want to go back to the downgrade menu? (y/n): " back_to_menu
     if [[ "$back_to_menu" =~ ^[Yy]$ ]]; then
         clear
@@ -112,6 +89,7 @@ list_versions() {
         return
     fi
 
+    # Select a version
     while true; do
         read -r -p "Select a version number from the list (1-${#versions[@]}): " selection
         if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -ge 1 ] && [ "$selection" -le ${#versions[@]} ]; then
