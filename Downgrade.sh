@@ -12,7 +12,7 @@ show_logo() {
  | (__ |   \ | '_|/ _ \| '  \ / -/)      | |) |/ _ \ \ V  V /| ' \ \__. || '_|/ _` |/ _` |/ -_)|'_|
   \___||_||_||_|  \___/|_|_|_|\___|      |___/ \___/  \_/\_/ |_||_||___/ |_|  \__/_|\__/_|\___||_|
 EOF
-    echo "Yes, I skidded off of MurkMod - v1.6.43 - Developer mode downgrader"
+    echo "Yes, I skidded off of MurkMod - v1.6.45 - Developer mode downgrader"
 }
 
 list_versions() {
@@ -44,15 +44,6 @@ list_versions() {
                 unique_versions[$major_minor]=$cros_version
                 platform=$(echo "$json_chrome100" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
                 channel=$(echo "$json_chrome100" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
-                
-                # Simplifying platform info to just a number (e.g., "hatch" -> 1)
-                case "$platform" in
-                    "hatch") platform="1" ;;
-                    "atlas") platform="2" ;;
-                    "eve") platform="3" ;;
-                    *) platform="unknown" ;;
-                esac
-                
                 versions+=("$cros_version | Platform: $platform | Channel: $channel (chrome100)")
             fi
         done
@@ -67,25 +58,12 @@ list_versions() {
             major_minor=$(echo "$milestone" | cut -d'.' -f1,2)
             if [ -z "${unique_versions[$major_minor]}" ]; then
                 unique_versions[$major_minor]=$milestone
-
-                # Get platform and channel from Chromium Dash
-                platform=$(jq -r ".builds.$board[].$hwid.pushRecoveries[\"$milestone\"] | .platform" <<<"$builds")
-                channel=$(jq -r ".builds.$board[].$hwid.pushRecoveries[\"$milestone\"] | .channel" <<<"$builds")
-
-                # Simplify platform number as well
-                case "$platform" in
-                    "hatch") platform="1" ;;
-                    "atlas") platform="2" ;;
-                    "eve") platform="3" ;;
-                    *) platform="unknown" ;;
-                esac
-
-                versions+=("$milestone | Platform: $platform | Channel: $channel (chromiumdash)")
+                versions+=("$milestone | Platform: $board | Channel: unknown (chromiumdash)")
             fi
         done
     fi
 
-    # Sort and display the final list of versions
+    # Sort final list
     IFS=$'\n' versions=($(printf "%s\n" "${versions[@]}" | sort -V))
     total_versions=${#versions[@]}
     total_pages=$(( (total_versions + 4) / 5 ))
