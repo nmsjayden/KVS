@@ -19,34 +19,52 @@ list_versions() {
     local release_board=$(lsbval CHROMEOS_RELEASE_BOARD)
     local board=${release_board%%-*}
     echo "Fetching available versions for board: $board..."
-    
-    local url="https://raw.githubusercontent.com/rainestorme/chrome100-json/main/boards/$board.json"
-    local json=$(curl -ks "$url")
-    
-    if [ -z "$json" ]; then
-        echo "Failed to fetch versions for board $board. Exiting."
-        exit 1
-    fi
 
-    local chrome_versions=$(echo "$json" | jq -r '.pageProps.images[].chrome')
-    if [ -z "$chrome_versions" ]; then
-        echo "No versions found for board $board."
+    # Fetch chrome100 JSON
+    local url_chrome100="https://raw.githubusercontent.com/rainestorme/chrome100-json/main/boards/$board.json"
+    local json_chrome100=$(curl -ks "$url_chrome100")
+
+    # Fetch Chromium Dash builds
+    local builds=$(curl -ks https://chromiumdash.appspot.com/cros/fetch_serving_builds?deviceCategory=Chrome%20OS)
+
+    if [ -z "$json_chrome100" ] && [ -z "$builds" ]; then
+        echo "Failed to fetch version data. Exiting."
         exit 1
     fi
 
     declare -A unique_versions
     local versions=()
 
-    for cros_version in $(echo "$chrome_versions" | sort -V); do
-        major_minor=$(echo "$cros_version" | cut -d'.' -f1,2)
-        if [ -z "${unique_versions[$major_minor]}" ]; then
-            unique_versions[$major_minor]=$cros_version
-            platform=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
-            channel=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
-            versions+=("$cros_version | Platform: $platform | Channel: $channel")
-        fi
-    done
+    # From chrome100
+    if [ -n "$json_chrome100" ]; then
+        chrome_versions=$(echo "$json_chrome100" | jq -r '.pageProps.images[].chrome')
+        for cros_version in $(echo "$chrome_versions" | sort -V); do
+            major_minor=$(echo "$cros_version" | cut -d'.' -f1,2)
+            if [ -z "${unique_versions[$major_minor]}" ]; then
+                unique_versions[$major_minor]=$cros_version
+                platform=$(echo "$json_chrome100" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
+                channel=$(echo "$json_chrome100" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
+                versions+=("$cros_version | Platform: $platform | Channel: $channel (chrome100)")
+            fi
+        done
+    fi
 
+    # From Chromium Dash
+    if [ -n "$builds" ]; then
+        hwid=$(jq "(.builds.$board[] | keys)[0]" <<<"$builds" 2>/dev/null)
+        hwid=${hwid:1:-1}
+        milestones=$(jq ".builds.$board[].$hwid.pushRecoveries | keys | .[]" <<<"$builds" 2>/dev/null | tr -d '"')
+        for milestone in $milestones; do
+            major_minor=$(echo "$milestone" | cut -d'.' -f1,2)
+            if [ -z "${unique_versions[$major_minor]}" ]; then
+                unique_versions[$major_minor]=$milestone
+                versions+=("$milestone | Platform: $board | Channel: unknown (chromiumdash)")
+            fi
+        done
+    fi
+
+    # Sort final list
+    IFS=$'\n' versions=($(printf "%s\n" "${versions[@]}" | sort -V))
     total_versions=${#versions[@]}
     total_pages=$(( (total_versions + 4) / 5 ))
 
@@ -64,7 +82,6 @@ list_versions() {
     done
 
     echo "-------------------------------------"
-
     read -r -p "Do you want to go back to the downgrade menu? (y/n): " back_to_menu
     if [[ "$back_to_menu" =~ ^[Yy]$ ]]; then
         clear
@@ -79,7 +96,7 @@ list_versions() {
             echo "You selected version: $VERSION"
             break
         else
-            echo "❌ Invalid selection. Please enter a number between 1 and ${#versions[@]}."
+            echo "Invalid selection. Please enter a number between 1 and ${#versions[@]}."
         fi
     done
 }
