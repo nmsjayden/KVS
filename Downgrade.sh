@@ -12,7 +12,7 @@ show_logo() {
  | (__ |   \ | '_|/ _ \| '  \ / -/)      | |) |/ _ \ \ V  V /| ' \ \__. || '_|/ _` |/ _` |/ -_)|'_|
   \___||_||_||_|  \___/|_|_|_|\___|      |___/ \___/  \_/\_/ |_||_||___/ |_|  \__/_|\__/_|\___||_|
 EOF
-    echo "Yes, I skidded off of MurkMod - v1.6.50 - Developer mode downgrader"
+    echo "Yes, I skidded off of MurkMod - v1.6.51 - Developer mode downgrader"
 }
 
 list_versions() {
@@ -57,6 +57,7 @@ list_versions() {
             major_minor=$(echo "$milestone" | cut -d'.' -f1,2)
             if [ -z "${unique_versions[$major_minor]}" ]; then
                 unique_versions[$major_minor]=$milestone
+                # Ensure platform or channel are not missing before listing
                 if [[ -n "$milestone" ]]; then
                     versions+=("$milestone | Platform: $board | Channel: unknown (chromiumdash)")
                 fi
