@@ -12,7 +12,7 @@ show_logo() {
  | (__ |   \ | '_|/ _ \| '  \ / -/)      | |) |/ _ \ \ V  V /| ' \ \__. || '_|/ _` |/ _` |/ -_)|'_|
   \___||_||_||_|  \___/|_|_|_|\___|      |___/ \___/  \_/\_/ |_||_||___/ |_|  \__/_|\__/_|\___||_|
 EOF
-    echo "Yes, I skidded off of MurkMod - v1.6.41 - Developer mode downgrader"
+    echo "Yes, I skidded off of MurkMod - v1.6.38 - Developer mode downgrader"
 }
 
 list_versions() {
@@ -109,6 +109,22 @@ list_versions() {
             echo "Invalid selection. Please enter a number between 1 and ${#versions[@]}."
         fi
     done
+}
+
+lsbval() {
+  local key="$1"
+  local lsbfile="${2:-/etc/lsb-release}"
+
+  if ! echo "${key}" | grep -Eq '^[a-zA-Z0-9_]+$'; then
+    return 1
+  fi
+
+  sed -E -n -e \
+    "/^[[:space:]]*${key}[[:space:]]*=/{
+      s:^[^=]+=[[:space:]]*::
+      s:[[:space:]]+$::
+      p
+    }" "${lsbfile}"
 }
 
 install() {
