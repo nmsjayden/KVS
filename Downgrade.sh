@@ -12,7 +12,7 @@ show_logo() {
  | (__ |   \ | '_|/ _ \| '  \ / -/)      | |) |/ _ \ \ V  V /| ' \ \__. || '_|/ _` |/ _` |/ -_)|'_|
   \___||_||_||_|  \___/|_|_|_|\___|      |___/ \___/  \_/\_/ |_||_||___/ |_|  \__/_|\__/_|\___||_|
 EOF
-    echo "Yes, I skidded off of MurkMod - v1.6.34 - Developer mode downgrader"
+    echo "Yes, I skidded off of MurkMod - v1.6.35 - Developer mode downgrader"
 }
 
 list_versions() {
@@ -35,8 +35,6 @@ list_versions() {
     fi
 
     declare -A unique_versions
-    local i=1
-    local count=0
     local versions=()
 
     for cros_version in $(echo "$chrome_versions" | sort -V); do
@@ -50,18 +48,13 @@ list_versions() {
     done
 
     total_versions=${#versions[@]}
-    total_pages=$((total_versions / 5))
-    if [ $((total_versions % 5)) -ne 0 ]; then
-        total_pages=$((total_pages + 1))
-    fi
+    total_pages=$(( (total_versions + 4) / 5 ))
 
     for page in $(seq 0 $((total_pages - 1))); do
         echo "-------------------------------------"
         start_index=$((page * 5))
-        end_index=$(((page + 1) * 5 - 1))
-        if [ $end_index -ge $total_versions ]; then
-            end_index=$((total_versions - 1))
-        fi
+        end_index=$((start_index + 4))
+        [ $end_index -ge $total_versions ] && end_index=$((total_versions - 1))
         for i in $(seq $start_index $end_index); do
             echo "$((i + 1))) ${versions[$i]}"
         done
@@ -72,7 +65,6 @@ list_versions() {
 
     echo "-------------------------------------"
 
-    # Only ONE prompt before version selection
     read -r -p "Do you want to go back to the downgrade menu? (y/n): " back_to_menu
     if [[ "$back_to_menu" =~ ^[Yy]$ ]]; then
         clear
@@ -80,15 +72,16 @@ list_versions() {
         return
     fi
 
-    # Proceed to version selection
-    read -r -p "Select a version number from the list (1-${#versions[@]}): " selection
-    if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -ge 1 ] && [ "$selection" -le ${#versions[@]} ]; then
-        VERSION=$(echo "${versions[$selection-1]}" | cut -d' ' -f1)
-        echo "You selected version: $VERSION"
-    else
-        echo "Invalid selection. Returning to the main menu."
-        return
-    fi
+    while true; do
+        read -r -p "Select a version number from the list (1-${#versions[@]}): " selection
+        if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -ge 1 ] && [ "$selection" -le ${#versions[@]} ]; then
+            VERSION=$(echo "${versions[$selection-1]}" | cut -d' ' -f1)
+            echo "You selected version: $VERSION"
+            break
+        else
+            echo "❌ Invalid selection. Please enter a number between 1 and ${#versions[@]}."
+        fi
+    done
 }
 
 lsbval() {
