@@ -20,11 +20,11 @@ list_versions() {
     local board=${release_board%%-*}
     echo "Fetching available versions for board: $board..."
 
-    # Fetch chrome100 JSON
+    # Chrome100 JSON
     local url_chrome100="https://raw.githubusercontent.com/rainestorme/chrome100-json/main/boards/$board.json"
     local json_chrome100=$(curl -ks "$url_chrome100")
 
-    # Fetch Chromium Dash builds
+    # Chromium Dash
     local builds=$(curl -ks https://chromiumdash.appspot.com/cros/fetch_serving_builds?deviceCategory=Chrome%20OS)
 
     if [ -z "$json_chrome100" ] && [ -z "$builds" ]; then
@@ -35,35 +35,45 @@ list_versions() {
     declare -A unique_versions
     local versions=()
 
-    # From chrome100
+    # Chrome100 data
     if [ -n "$json_chrome100" ]; then
-        chrome_versions=$(echo "$json_chrome100" | jq -r '.pageProps.images[].chrome')
-        for cros_version in $(echo "$chrome_versions" | sort -V); do
-            major_minor=$(echo "$cros_version" | cut -d'.' -f1,2)
-            if [ -z "${unique_versions[$major_minor]}" ]; then
-                unique_versions[$major_minor]=$cros_version
-                platform=$(echo "$json_chrome100" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
-                channel=$(echo "$json_chrome100" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
-                versions+=("$cros_version | Platform: $platform | Channel: $channel (chrome100)")
+        chrome_entries=$(echo "$json_chrome100" | jq -c '.pageProps.images[]')
+        while IFS= read -r entry; do
+            version=$(echo "$entry" | jq -r '.chrome' | cut -d'.' -f1-3)
+            platform=$(echo "$entry" | jq -r '.platform')
+            channel=$(echo "$entry" | jq -r '.channel')
+            key="${version}_${platform}_${channel}"
+            if [ -z "${unique_versions[$key]}" ]; then
+                unique_versions[$key]=1
+                versions+=("$version | Platform: $platform | Channel: $channel")
             fi
-        done
+        done <<< "$chrome_entries"
     fi
 
-    # From Chromium Dash
+    # Chromium Dash data
     if [ -n "$builds" ]; then
-        hwid=$(jq "(.builds.$board[] | keys)[0]" <<<"$builds" 2>/dev/null)
-        hwid=${hwid:1:-1}
-        milestones=$(jq ".builds.$board[].$hwid.pushRecoveries | keys | .[]" <<<"$builds" 2>/dev/null | tr -d '"')
-        for milestone in $milestones; do
-            major_minor=$(echo "$milestone" | cut -d'.' -f1,2)
-            if [ -z "${unique_versions[$major_minor]}" ]; then
-                unique_versions[$major_minor]=$milestone
-                versions+=("$milestone | Platform: $board | Channel: unknown (chromiumdash)")
-            fi
-        done
+        board_data=$(echo "$builds" | jq -r --arg board "$board" '.builds[$board]')
+        if [ "$board_data" != "null" ]; then
+            hwids=$(echo "$board_data" | jq -r 'keys[]')
+            for hwid in $hwids; do
+                push_data=$(echo "$board_data" | jq -r --arg hwid "$hwid" '.[$hwid].pushRecoveries')
+                if [ "$push_data" != "null" ]; then
+                    versions_list=$(echo "$push_data" | jq -r 'to_entries[] | [.key, .value.version, .value.chromePlatform, .value.channel] | @tsv')
+                    while IFS=$'\t' read -r milestone version platform channel; do
+                        version_trimmed=$(echo "$version" | cut -d'.' -f1-3)
+                        channel_clean=$(echo "$channel" | tr '[:upper:]' '[:lower:]')
+                        key="${version_trimmed}_${platform}_${channel_clean}"
+                        if [ -z "${unique_versions[$key]}" ]; then
+                            unique_versions[$key]=1
+                            versions+=("$version_trimmed | Platform: $platform | Channel: $channel_clean")
+                        fi
+                    done <<< "$versions_list"
+                fi
+            done
+        fi
     fi
 
-    # Sort final list
+    # Sort and paginate
     IFS=$'\n' versions=($(printf "%s\n" "${versions[@]}" | sort -V))
     total_versions=${#versions[@]}
     total_pages=$(( (total_versions + 4) / 5 ))
@@ -99,22 +109,6 @@ list_versions() {
             echo "Invalid selection. Please enter a number between 1 and ${#versions[@]}."
         fi
     done
-}
-
-lsbval() {
-  local key="$1"
-  local lsbfile="${2:-/etc/lsb-release}"
-
-  if ! echo "${key}" | grep -Eq '^[a-zA-Z0-9_]+$'; then
-    return 1
-  fi
-
-  sed -E -n -e \
-    "/^[[:space:]]*${key}[[:space:]]*=/{
-      s:^[^=]+=[[:space:]]*::
-      s:[[:space:]]+$::
-      p
-    }" "${lsbfile}"
 }
 
 install() {
