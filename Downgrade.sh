@@ -20,7 +20,6 @@ list_versions() {
     local board=${release_board%%-*}
     echo "Fetching available versions for board: $board..."
     
-    # Get ChromeOS versions from chrome100 or chromiumdash
     local url="https://raw.githubusercontent.com/rainestorme/chrome100-json/main/boards/$board.json"
     local json=$(curl -ks "$url")
     
@@ -30,37 +29,26 @@ list_versions() {
     fi
 
     local chrome_versions=$(echo "$json" | jq -r '.pageProps.images[].chrome')
-
     if [ -z "$chrome_versions" ]; then
         echo "No versions found for board $board."
         exit 1
     fi
 
-    # Prepare an array to hold unique major.minor versions
     declare -A unique_versions
-
     local i=1
     local count=0
-    local first_run=true
     local versions=()
 
-    # Loop over all versions and save them to an array
     for cros_version in $(echo "$chrome_versions" | sort -V); do
-        # Extract the major.minor version part (e.g., 124.0)
         major_minor=$(echo "$cros_version" | cut -d'.' -f1,2)
-        
-        # If this major.minor version hasn't been added yet, add it
         if [ -z "${unique_versions[$major_minor]}" ]; then
             unique_versions[$major_minor]=$cros_version
             platform=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
             channel=$(echo "$json" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
-
-            # Save the version and related info into the array
             versions+=("$cros_version | Platform: $platform | Channel: $channel")
         fi
     done
 
-    # Loop through the versions array and show 5 at a time
     total_versions=${#versions[@]}
     total_pages=$((total_versions / 5))
     if [ $((total_versions % 5)) -ne 0 ]; then
@@ -74,11 +62,9 @@ list_versions() {
         if [ $end_index -ge $total_versions ]; then
             end_index=$((total_versions - 1))
         fi
-        # Display versions for the current page
         for i in $(seq $start_index $end_index); do
             echo "$((i + 1))) ${versions[$i]}"
         done
-        # Wait for the user to press Enter to show more
         if [ $page -lt $((total_pages - 1)) ]; then
             read -r -p "Press Enter to continue for more versions, or Ctrl+C to exit."
         fi
@@ -86,32 +72,22 @@ list_versions() {
 
     echo "-------------------------------------"
 
-    # Prompt if the user wants to go back to the menu before selecting a version
+    # Only ONE prompt before version selection
     read -r -p "Do you want to go back to the downgrade menu? (y/n): " back_to_menu
     if [[ "$back_to_menu" =~ ^[Yy]$ ]]; then
-        clear  # Clear the terminal screen
-        main  # Go back to the main menu
-        return  # Exit the list_versions function
+        clear
+        main
+        return
     fi
 
-    # Otherwise, proceed to version selection
+    # Proceed to version selection
     read -r -p "Select a version number from the list (1-${#versions[@]}): " selection
     if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -ge 1 ] && [ "$selection" -le ${#versions[@]} ]; then
         VERSION=$(echo "${versions[$selection-1]}" | cut -d' ' -f1)
         echo "You selected version: $VERSION"
     else
         echo "Invalid selection. Returning to the main menu."
-        return  # This will exit the list_versions function and go back to the main menu
-    fi
-
-    # Ask if the user wants to go back to the downgrade menu
-    read -r -p "Do you want to go back to the downgrade menu? (y/n): " response
-    if [[ "$response" =~ ^[Yy]$ ]]; then
-        read -r -p "Are you sure you want to go back to the menu? (y/n): " confirm
-        if [[ "$confirm" =~ ^[Yy]$ ]]; then
-            clear  # Clear the terminal screen
-            main  # Assuming `downgrade_menu` is the function to bring the user back to the menu
-        fi
+        return
     fi
 }
 
