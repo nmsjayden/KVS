@@ -86,7 +86,17 @@ list_versions() {
 
     echo "-------------------------------------"
 
-    # Prompt the user twice if they want to go back to the menu
+    # Prompt the user to select a version
+    read -r -p "Select a version number from the list (1-${#versions[@]}): " selection
+    if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -ge 1 ] && [ "$selection" -le ${#versions[@]} ]; then
+        VERSION=$(echo "${versions[$selection-1]}" | cut -d' ' -f1)
+        echo "You selected version: $VERSION"
+    else
+        echo "Invalid selection. Returning to the main menu."
+        return  # This will exit the list_versions function and go back to the main menu
+    fi
+
+    # Ask if the user wants to go back to the downgrade menu
     read -r -p "Do you want to go back to the downgrade menu? (y/n): " response
     if [[ "$response" =~ ^[Yy]$ ]]; then
         read -r -p "Are you sure you want to go back to the menu? (y/n): " confirm
