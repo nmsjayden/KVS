@@ -92,7 +92,7 @@ list_versions() {
         read -r -p "Are you sure you want to go back to the menu? (y/n): " confirm
         if [[ "$confirm" =~ ^[Yy]$ ]]; then
             clear  # Clear the terminal screen
-            downgrade_menu  # Assuming `downgrade_menu` is the function to bring the user back to the menu
+            main  # Assuming `downgrade_menu` is the function to bring the user back to the menu
         fi
     fi
 }
