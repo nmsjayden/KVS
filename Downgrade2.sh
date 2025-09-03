@@ -56,14 +56,21 @@ install_image() {
     echo "[*] Downloading recovery image..."
     curl --progress-bar -L -o recovery.zip "$IMAGE_URL" || fail "Download failed"
 
-    # Check for unzip
+    # Unzip using system unzip, python3, or busybox fallback
     if command -v unzip >/dev/null 2>&1; then
-        unzip recovery.zip || fail "Failed to unzip"
+        echo "[*] Using system unzip..."
+        unzip recovery.zip || fail "Unzip failed"
     elif command -v python3 >/dev/null 2>&1; then
-        echo "[*] unzip not found, using Python fallback..."
+        echo "[*] Unzip not found, using Python fallback..."
         python3 -m zipfile -e recovery.zip . || fail "Python unzip failed"
     else
-        fail "No unzip method found (install unzip or python3)"
+        echo "[*] No unzip or python3 found, using busybox..."
+        if [ ! -f /usr/local/tmp/busybox ]; then
+            mkdir -p /usr/local/tmp
+            curl -L -o /usr/local/tmp/busybox https://busybox.net/downloads/binaries/1.35.0-x86_64-linux-musl/busybox
+            chmod +x /usr/local/tmp/busybox
+        fi
+        /usr/local/tmp/busybox unzip recovery.zip || fail "Busybox unzip failed"
     fi
 
     FILENAME=$(find . -maxdepth 2 -name "chromeos_*.bin" | head -n1)
@@ -74,6 +81,10 @@ install_image() {
     DST=$(lsblk -d -o NAME,SIZE,MODEL | grep -v 'loop\|ram' | awk '{print "/dev/"$1}' | head -n1)
     read -p "Detected target: $DST. Use this? [Y/n]: " confirm < /dev/tty
     [[ "$confirm" =~ ^[Nn]$ ]] && read -p "Enter target device: " DST < /dev/tty
+
+    # Confirm before overwriting partitions
+    read -p "About to overwrite partitions on $DST. Confirm [yes/NO]: " double_confirm < /dev/tty
+    [[ "$double_confirm" != "yes" ]] && fail "Aborted by user."
 
     echo "[*] Writing partitions..."
     LOOP=$(losetup -f --show "$FILENAME")
