@@ -12,7 +12,7 @@ show_logo() {
  | (__ |   \ | '_|/ _ \| '  \ / -/)      | |) |/ _ \ \ V  V /| ' \ \__. || '_|/ _` |/ _` |/ -_)|'_|
   \___||_||_||_|  \___/|_|_|_|\___|      |___/ \___/  \_/\_/ |_||_||___/ |_|  \__/_|\__/_|\___||_|
 EOF
-    echo "ChromeOS version downloader & installer (VT2 terminal)"
+    echo "ChromeOS Downgrade/Upgrade Script (VT2 terminal compatible)"
 }
 
 detect_board() {
@@ -20,13 +20,14 @@ detect_board() {
         BOARD=$(grep -m1 "^CHROMEOS_RELEASE_BOARD=" /etc/lsb-release | cut -d'=' -f2)
         BOARD="${BOARD%%-*}"
     else
-        fail "Cannot detect board automatically. Please run on Chrome OS."
+        fail "Cannot detect board automatically."
     fi
     echo "[*] Detected board: $BOARD"
 }
 
-select_version() {
-    echo "Select Chrome OS version:"
+choose_version() {
+    echo
+    echo "Select ChromeOS version to install:"
     echo "1) latest"
     echo "2) oldest"
     echo "3) custom"
@@ -45,13 +46,14 @@ select_version() {
 }
 
 download_image() {
-    echo "[*] Downloading recovery image using cros.download..."
-    cros.download "$BOARD" "$VERSION" || fail "Download failed"
+    echo "[*] Downloading recovery image from cros.download..."
+    cros.download "$BOARD" "$VERSION" || fail "Download failed."
     echo "[*] Download complete."
 }
 
 install_image() {
-    echo -n "Do you want to install the downloaded image? This will overwrite partitions. [y/N]: "
+    echo
+    echo -n "Do you want to install the downloaded image? This will overwrite your partitions. [y/N]: "
     read confirm < /dev/tty
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
         IMAGE_FILE=$(find . -maxdepth 1 -name "*${BOARD}*.bin" | head -n1)
@@ -65,7 +67,7 @@ install_image() {
         dd if="${LOOP}" of="$DST" bs=4M status=progress
         losetup -d "$LOOP"
 
-        echo "[*] Installation complete. Reboot to use new ChromeOS image."
+        echo "[*] Installation complete. Reboot to use the new ChromeOS image."
     else
         echo "[*] Installation skipped."
     fi
@@ -74,7 +76,7 @@ install_image() {
 main() {
     show_logo
     detect_board
-    select_version
+    choose_version
     download_image
     install_image
 }
