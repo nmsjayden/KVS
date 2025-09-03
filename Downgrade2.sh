@@ -1,6 +1,12 @@
 #!/bin/bash
 fail() { echo "[!] $1"; exit 1; }
 
+# Ensure unzip is available
+if ! command -v unzip &>/dev/null; then
+    echo "[*] unzip not found. Installing via dev_install..."
+    sudo dev_install unzip -y || fail "Failed to install unzip"
+fi
+
 show_logo() {
     clear
     cat <<'EOF'
@@ -23,16 +29,19 @@ detect_board() {
 }
 
 fetch_versions() {
-    echo "[*] Fetching available recovery builds for $BOARD..."
-    CHROME100_JSON=$(curl -s "https://raw.githubusercontent.com/rainestorme/chrome100-json/main/boards/$BOARD.json")
-    if [ -n "$CHROME100_JSON" ]; then
-        LATEST_URL=$(echo "$CHROME100_JSON" | jq -r '.pageProps.images[-1] | "\(.chrome) \(.platform) \(.channel) \(.mp_token) \(.mp_key)"')
-        OLDEST_URL=$(echo "$CHROME100_JSON" | jq -r '.pageProps.images[0] | "\(.chrome) \(.platform) \(.channel) \(.mp_token) \(.mp_key)"')
-    else
-        echo "[!] Chrome100 JSON not found, using default test URLs."
-        LATEST_URL="16295.74.0 nissa stable NissaMPKeys 58"
-        OLDEST_URL="15117.112.0 hatch stable mp 6"
-    fi
+    echo "[*] Fetching Chromium Dash data..."
+    BUILDS_JSON=$(curl -s "https://chromiumdash.appspot.com/cros/fetch_serving_builds?deviceCategory=Chrome%20OS")
+    HWID=$(jq -r "(.builds.$BOARD[] | keys[0])" <<<"$BUILDS_JSON")
+    MILESTONES=$(jq -r ".builds.$BOARD[].$HWID.pushRecoveries | keys | .[]" <<<"$BUILDS_JSON" | sort -V)
+    
+    OLDEST_MILESTONE=$(echo "$MILESTONES" | head -n1)
+    LATEST_MILESTONE=$(echo "$MILESTONES" | tail -n1)
+    
+    OLDEST_URL=$(jq -r ".builds.$BOARD[].$HWID.pushRecoveries[\"$OLDEST_MILESTONE\"]" <<<"$BUILDS_JSON")
+    LATEST_URL=$(jq -r ".builds.$BOARD[].$HWID.pushRecoveries[\"$LATEST_MILESTONE\"]" <<<"$BUILDS_JSON")
+    
+    echo "[*] Latest milestone: $LATEST_MILESTONE"
+    echo "[*] Oldest milestone: $OLDEST_MILESTONE"
 }
 
 choose_version() {
@@ -45,16 +54,8 @@ choose_version() {
     read choice < /dev/tty
 
     case $choice in
-        1)
-            VERSION="latest"
-            arr=($LATEST_URL)
-            FINAL_URL="https://dl.google.com/dl/edgedl/chromeos/recovery/chromeos_${arr[1]}_${BOARD}_recovery_${arr[2]}_${arr[3]}-v${arr[4]}.bin.zip"
-            ;;
-        2)
-            VERSION="oldest"
-            arr=($OLDEST_URL)
-            FINAL_URL="https://dl.google.com/dl/edgedl/chromeos/recovery/chromeos_${arr[1]}_${BOARD}_recovery_${arr[2]}_${arr[3]}-v${arr[4]}.bin.zip"
-            ;;
+        1) VERSION="latest"; FINAL_URL="$LATEST_URL" ;;
+        2) VERSION="oldest"; FINAL_URL="$OLDEST_URL" ;;
         3)
             echo -n "Enter full recovery URL: "
             read FINAL_URL < /dev/tty
@@ -62,7 +63,6 @@ choose_version() {
             ;;
         *) fail "Invalid choice" ;;
     esac
-
     echo "[*] Selected version: $VERSION"
     echo "[*] URL: $FINAL_URL"
 }
