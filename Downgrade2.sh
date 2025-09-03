@@ -1,8 +1,5 @@
 #!/bin/bash
-fail() {
-    echo "[!] $1"
-    exit 1
-}
+fail() { echo "[!] $1"; exit 1; }
 
 show_logo() {
     clear
@@ -15,25 +12,57 @@ EOF
     echo "ChromeOS Downgrade/Install Script (VT2 compatible)"
 }
 
+detect_board() {
+    if [ -f /etc/lsb-release ]; then
+        BOARD=$(grep -m1 "^CHROMEOS_RELEASE_BOARD=" /etc/lsb-release | cut -d'=' -f2)
+        BOARD="${BOARD%%-*}"
+    else
+        fail "Cannot detect board automatically."
+    fi
+    echo "[*] Detected board: $BOARD"
+}
+
+fetch_versions() {
+    echo "[*] Fetching available recovery builds for $BOARD..."
+    CHROME100_JSON=$(curl -s "https://raw.githubusercontent.com/rainestorme/chrome100-json/main/boards/$BOARD.json")
+    if [ -n "$CHROME100_JSON" ]; then
+        LATEST_URL=$(echo "$CHROME100_JSON" | jq -r '.pageProps.images[-1] | "\(.chrome) \(.platform) \(.channel) \(.mp_token) \(.mp_key)"')
+        OLDEST_URL=$(echo "$CHROME100_JSON" | jq -r '.pageProps.images[0] | "\(.chrome) \(.platform) \(.channel) \(.mp_token) \(.mp_key)"')
+    else
+        echo "[!] Chrome100 JSON not found, using default test URLs."
+        LATEST_URL="16295.74.0 nissa stable NissaMPKeys 58"
+        OLDEST_URL="15117.112.0 hatch stable mp 6"
+    fi
+}
+
 choose_version() {
     echo
     echo "Select ChromeOS version to install:"
     echo "1) latest"
     echo "2) oldest"
-    echo "3) custom"
+    echo "3) custom URL"
     echo -n "(1-3) > "
     read choice < /dev/tty
 
     case $choice in
-        1) VERSION="latest"; FINAL_URL="https://dl.google.com/dl/edgedl/chromeos/recovery/chromeos_16295.74.0_nissa_recovery_stable-channel_NissaMPKeys-v58.bin.zip" ;;
-        2) VERSION="oldest"; FINAL_URL="https://dl.google.com/dl/edgedl/chromeos/recovery/chromeos_15117.112.0_hatch_recovery_stable-channel_mp-v6.bin.zip" ;;
-        3) 
+        1)
+            VERSION="latest"
+            arr=($LATEST_URL)
+            FINAL_URL="https://dl.google.com/dl/edgedl/chromeos/recovery/chromeos_${arr[1]}_${BOARD}_recovery_${arr[2]}_${arr[3]}-v${arr[4]}.bin.zip"
+            ;;
+        2)
+            VERSION="oldest"
+            arr=($OLDEST_URL)
+            FINAL_URL="https://dl.google.com/dl/edgedl/chromeos/recovery/chromeos_${arr[1]}_${BOARD}_recovery_${arr[2]}_${arr[3]}-v${arr[4]}.bin.zip"
+            ;;
+        3)
             echo -n "Enter full recovery URL: "
             read FINAL_URL < /dev/tty
             VERSION="custom"
             ;;
         *) fail "Invalid choice" ;;
     esac
+
     echo "[*] Selected version: $VERSION"
     echo "[*] URL: $FINAL_URL"
 }
@@ -70,6 +99,8 @@ install_image() {
 
 main() {
     show_logo
+    detect_board
+    fetch_versions
     choose_version
     download_image
     install_image
