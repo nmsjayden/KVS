@@ -31,13 +31,13 @@ select_version() {
     echo "2) oldest"
     echo "3) custom"
     echo -n "(1-3) > "
-    read choice
+    read choice < /dev/tty
     case $choice in
         1) VERSION="latest" ;;
         2) VERSION="oldest" ;;
         3)
             echo -n "Enter milestone version: "
-            read VERSION
+            read VERSION < /dev/tty
             ;;
         *) fail "Invalid choice" ;;
     esac
@@ -46,27 +46,20 @@ select_version() {
 
 download_image() {
     echo "[*] Downloading recovery image using cros.download..."
-    if [[ "$VERSION" == "latest" || "$VERSION" == "oldest" ]]; then
-        cros.download "$BOARD" "$VERSION" || fail "Download failed"
-    else
-        cros.download "$BOARD" "$VERSION" || fail "Download failed"
-    fi
+    cros.download "$BOARD" "$VERSION" || fail "Download failed"
     echo "[*] Download complete."
 }
 
 install_image() {
     echo -n "Do you want to install the downloaded image? This will overwrite partitions. [y/N]: "
-    read confirm
+    read confirm < /dev/tty
     if [[ "$confirm" =~ ^[Yy]$ ]]; then
-        # Find downloaded file
         IMAGE_FILE=$(find . -maxdepth 1 -name "*${BOARD}*.bin" | head -n1)
         [ -f "$IMAGE_FILE" ] || fail "Downloaded image not found"
 
-        # Detect largest non-removable ChromeOS block device
         DST=$(lsblk -d -o NAME,SIZE,MODEL | grep -v 'loop\|ram' | awk '{print "/dev/"$1}' | head -n1)
         echo "[*] Installing to $DST"
 
-        # Use losetup and dd to write image
         LOOP=$(losetup -f)
         losetup "$LOOP" "$IMAGE_FILE"
         dd if="${LOOP}" of="$DST" bs=4M status=progress
