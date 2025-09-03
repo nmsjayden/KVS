@@ -4,7 +4,7 @@ fail() { echo "[!] $1"; exit 1; }
 # Ensure unzip is available
 if ! command -v unzip &>/dev/null; then
     echo "[*] unzip not found. Installing via dev_install..."
-    sudo dev_install unzip -y || fail "Failed to install unzip"
+    sudo dev_install unzip || fail "Failed to install unzip"
 fi
 
 show_logo() {
