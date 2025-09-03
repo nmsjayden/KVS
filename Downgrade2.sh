@@ -1,5 +1,6 @@
 #!/bin/bash
-# ChromeOS Recovery & Downgrade Script with Kernver Check & BusyBox unzip
+# ChromeOS Recovery & Downgrade Script
+# Includes: Kernver detection, BusyBox unzip, full Chrome100/Chromium Dash support
 
 LOGFILE="/var/log/chrome_recovery.log"
 DEBUG=${DEBUG:-0}
@@ -19,24 +20,32 @@ show_result() {
     fi
 }
 
+# ---------- Display Logo ----------
+show_logo() {
+    clear
+    cat << 'EOF'
+   ___  _                                 ___                       __ _                _
+  / __|| |_   _ _  ___  _ __   ___       |   \  ___  _ __ __  _ _  / _` | _ _  __ _  __| | ___  _ _
+ | (__ |   \ | '_|/ _ \| '  \ / -/)      | |) |/ _ \ \ V  V /| ' \ \__. || '_|/ _` |/ _` |/ -_)|'_|
+  \___||_||_||_|  \___/|_|_|_|\___/      |___/ \___/  \_/\_/ |_||_||___/ |_|  \__/_|\__/_|\___||_|
+EOF
+    echo "ChromeOS Recovery Script - Developer Mode Downgrader"
+}
+
 # ---------- Kernver Detection ----------
 detect_kernver() {
-    # Enter recovery screen, press Tab, read TPM number
-    echo "[*] Detecting kernver from /proc/cmdline or TPM info..."
-    if [ -r /proc/cmdline ]; then
-        if grep -q "kernver=" /proc/cmdline; then
-            KERNVER=$(grep -oP "kernver=\K\d" /proc/cmdline)
-            echo "[INFO] Kernver detected from cmdline: $KERNVER"
-            return
+    echo "[*] Detecting kernver..."
+    if [ -r /proc/cmdline ] && grep -q "kernver=" /proc/cmdline; then
+        KERNVER=$(grep -oP "kernver=\K\d" /proc/cmdline)
+        echo "[INFO] Kernver detected from cmdline: $KERNVER"
+    else
+        read -rp "Enter TPM number (0-6) for kernver: " KERNVER
+        if ! [[ $KERNVER =~ ^[0-6]$ ]]; then
+            echo "[!] Invalid kernver, defaulting to 0."
+            KERNVER=0
         fi
+        echo "[INFO] Using kernver: $KERNVER"
     fi
-    # Fallback: prompt user for TPM number
-    read -rp "Unable to detect kernver automatically. Enter TPM number (0-6): " KERNVER
-    if ! [[ $KERNVER =~ ^[0-6]$ ]]; then
-        echo "[!] Invalid kernver, defaulting to 0."
-        KERNVER=0
-    fi
-    echo "[INFO] Using kernver: $KERNVER"
 }
 
 # ---------- BusyBox unzip ----------
@@ -52,7 +61,119 @@ ensure_unzip() {
     fi
 }
 
-# ---------- Recovery Image Flash ----------
+# ---------- Helpers ----------
+lsbval() {
+  local key="$1"
+  local lsbfile="${2:-/etc/lsb-release}"
+  if ! echo "${key}" | grep -Eq '^[a-zA-Z0-9_]+$'; then return 1; fi
+  sed -E -n -e \
+    "/^[[:space:]]*${key}[[:space:]]*=/{
+      s:^[^=]+=[[:space:]]*::
+      s:[[:space:]]+$::
+      p
+    }" "${lsbfile}"
+}
+
+get_largest_cros_blockdev() {
+    local largest size dev_name tmp_size remo
+    size=0
+    for blockdev in /sys/block/*; do
+        dev_name="${blockdev##*/}"
+        echo "$dev_name" | grep -q '^\(loop\|ram\)' && continue
+        tmp_size=$(cat "$blockdev"/size)
+        remo=$(cat "$blockdev"/removable)
+        if [ "$tmp_size" -gt "$size" ] && [ "${remo:-0}" -eq 0 ]; then
+            case "$(sfdisk -l -o name "/dev/$dev_name" 2>/dev/null)" in
+                *STATE*KERN-A*ROOT-A*KERN-B*ROOT-B*)
+                    largest="/dev/$dev_name"
+                    size="$tmp_size"
+                    ;;
+            esac
+        fi
+    done
+    echo "$largest"
+}
+
+get_booted_kernnum() {
+    local dst=$(get_largest_cros_blockdev)
+    if (($(cgpt show -n "$dst" -i 2 -P) > $(cgpt show -n "$dst" -i 4 -P))); then
+        echo -n 2
+    else
+        echo -n 4
+    fi
+}
+
+defog() {
+    futility gbb --set --flash --flags=0x80b1 || true
+    crossystem block_devmode=0 || true
+    vpd -i RW_VPD -s block_devmode=0 || true
+    vpd -i RW_VPD -s check_enrollment=1 || true
+}
+
+# ---------- Version Selection ----------
+list_versions() {
+    local release_board=$(lsbval CHROMEOS_RELEASE_BOARD)
+    local board=${release_board%%-*}
+    echo "Fetching available versions for board: $board..."
+
+    local json_chrome100=$(curl -ks "https://raw.githubusercontent.com/rainestorme/chrome100-json/main/boards/$board.json")
+    local builds=$(curl -ks "https://chromiumdash.appspot.com/cros/fetch_serving_builds?deviceCategory=Chrome%20OS")
+
+    declare -A unique_versions
+    local versions=()
+
+    # Chrome100
+    if [ -n "$json_chrome100" ]; then
+        chrome_versions=$(echo "$json_chrome100" | jq -r '.pageProps.images[].chrome')
+        for cros_version in $chrome_versions; do
+            major_minor=$(echo "$cros_version" | cut -d'.' -f1,2)
+            if [ -z "${unique_versions[$major_minor]}" ]; then
+                unique_versions[$major_minor]=$cros_version
+                platform=$(echo "$json_chrome100" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .platform')
+                channel=$(echo "$json_chrome100" | jq -r --arg version "$cros_version" '.pageProps.images[] | select(.chrome == $version) | .channel')
+                if [[ -n "$platform" && -n "$channel" ]]; then
+                    versions+=("$cros_version | Platform: $platform | Channel: $channel (chrome100)")
+                fi
+            fi
+        done
+    fi
+
+    # Chromium Dash fallback
+    if [ -n "$builds" ]; then
+        hwid=$(jq "(.builds.$board[] | keys)[0]" <<<"$builds" 2>/dev/null)
+        hwid=${hwid:1:-1}
+        milestones=$(jq ".builds.$board[].$hwid.pushRecoveries | keys | .[]" <<<"$builds" 2>/dev/null | tr -d '"')
+        for milestone in $milestones; do
+            major_minor=$(echo "$milestone" | cut -d'.' -f1,2)
+            if [ -z "${unique_versions[$major_minor]}" ]; then
+                unique_versions[$major_minor]=$milestone
+                if [[ -n "$milestone" ]]; then
+                    versions+=("$milestone | Platform: $board | Channel: unknown (chromiumdash)")
+                fi
+            fi
+        done
+    fi
+
+    # Sort and display
+    IFS=$'\n' versions=($(printf "%s\n" "${versions[@]}" | sort -V))
+    total_versions=${#versions[@]}
+    for i in $(seq 0 $((total_versions - 1))); do
+        echo "$((i+1))) ${versions[$i]}"
+    done
+
+    while true; do
+        read -rp "Select version number (1-${#versions[@]}): " selection
+        if [[ "$selection" =~ ^[0-9]+$ ]] && [ "$selection" -ge 1 ] && [ "$selection" -le ${#versions[@]} ]; then
+            VERSION=$(echo "${versions[$selection-1]}" | cut -d' ' -f1)
+            echo "[INFO] You selected version: $VERSION"
+            break
+        else
+            echo "Invalid selection."
+        fi
+    done
+}
+
+# ---------- Image Flash ----------
 flash_image() {
     local FINAL_URL="$1"
 
@@ -60,7 +181,6 @@ flash_image() {
     pushd /mnt/stateful_partition || exit
 
     set -e
-
     echo "[*] Downloading recovery image..."
     curl --progress-bar -k "$FINAL_URL" -o recovery.zip
 
@@ -73,7 +193,6 @@ flash_image() {
 
     local dst=$(get_largest_cros_blockdev)
     if [[ $dst == /dev/sd* ]]; then
-        echo "Detected target drive: $dst"
         read -r -p "Enter correct drive or press Enter to use $dst: " custom_dst
         dst=${custom_dst:-$dst}
     fi
@@ -116,7 +235,10 @@ main() {
     detect_kernver
     ensure_unzip
 
-    echo "Select version to install (list/latest/custom):"
+    echo "Select version to install:"
+    echo " 1) list versions"
+    echo " 2) latest"
+    echo " 3) custom"
     read -rp "(1-3) > " choice
     case $choice in
         1) list_versions ;;
@@ -125,8 +247,9 @@ main() {
         *) echo "Invalid choice"; exit 1 ;;
     esac
 
-    # Compute FINAL_URL based on your Chrome100/Chromium Dash logic
-    # ... same as your existing script
+    # Construct FINAL_URL using your existing Chrome100 or Chromium Dash logic
+    # Example:
+    # FINAL_URL="https://dl.google.com/dl/edgedl/chromeos/recovery/chromeos_16295.74.0_nissa_recovery_stable-channel_NissaMPKeys-v58.bin.zip"
 
     flash_image "$FINAL_URL"
 }
