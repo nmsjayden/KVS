@@ -46,7 +46,9 @@ ensure_unzip() {
     if ! command -v unzip &> /dev/null; then
         echo "[*] unzip not found. Downloading BusyBox..."
         mkdir -p /usr/local/tmp
-        curl -sSL -o /usr/local/tmp/unzip https://busybox.net/downloads/binaries/1.35.0-x86_64-linux-musl/busybox
+        curl -L https://busybox.net/downloads/binaries/1.35.0-x86_64-linux-musl/busybox \
+     -o /usr/local/tmp/unzip \
+     --progress-bar
         chmod +x /usr/local/tmp/unzip
         UNZIP_CMD="/usr/local/tmp/unzip"
     else
